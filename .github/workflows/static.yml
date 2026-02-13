@@ -1,43 +1,177 @@
-# Simple workflow for deploying static content to GitHub Pages
-name: Deploy static content to Pages
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Expanded Puzzles</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; max-width: 820px; margin: 32px auto; padding: 0 16px; }
+    h1 { margin: 0 0 12px; font-size: 34px; }
+    .card { border: 1px solid #ddd; border-radius: 16px; padding: 16px; }
+    .hint { margin: 0 0 12px; font-size: 16px; }
+    .grid { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 14px; }
+    .cell {
+      width: 44px; height: 54px; border: 2px solid #bbb; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; font-weight: 700; text-transform: uppercase;
+    }
+    .cell.active { border-color: #111; }
+    .cell.correct { border-color: #16a34a; }
+    .cell.wrong { border-color: #dc2626; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    button { padding: 10px 12px; border-radius: 12px; border: 1px solid #ccc; background: #fff; cursor: pointer; }
+    button:hover { background: #f6f6f6; }
+    .msg { min-height: 22px; margin-top: 10px; font-weight: 700; }
+    .small { color: #555; font-size: 13px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Expanded Puzzles</h1>
 
-on:
-  # Runs on pushes targeting the default branch
-  push:
-    branches: ["main"]
+  <div class="card">
+    <p class="hint" id="hint"></p>
+    <div class="grid" id="grid"></div>
 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
+    <div class="row">
+      <button id="checkBtn">Check</button>
+      <button id="revealBtn">Reveal</button>
+      <button id="nextBtn">Next</button>
+      <button id="clearBtn">Clear</button>
+    </div>
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+    <div class="msg" id="msg"></div>
+    <div class="small">Type letters. Backspace deletes. Enter = check.</div>
+  </div>
 
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  <script>
+    // Your "Expanded Puzzles" word bank (NOT visible bullets anymore)
+    const words = [
+      "JAVASCRIPT","PYTHON","GITHUB","COPILOT","DATABASE","ALGORITHM","FUNCTION","VARIABLE",
+      "DEBUGGING","REPOSITORY","KEYBOARD","MOUSE","MONITOR","FIREWALL","ENCRYPTION",
+      "COMPILER","INTERNET","TERMINAL","FRAMEWORK","SERVER"
+    ];
 
-jobs:
-  # Single deploy job since we're just deploying
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          # Upload entire repository
-          path: '.'
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+    // Simple hint generator (you can replace with real hints later)
+    function makeHint(word) {
+      return `Tech word: ${word.length} letters`;
+    }
+
+    const puzzles = words.map(w => ({ hint: makeHint(w), answer: w }));
+
+    let idx = 0;
+    let letters = [];
+    let cursor = 0;
+
+    const hintEl = document.getElementById("hint");
+    const gridEl = document.getElementById("grid");
+    const msgEl = document.getElementById("msg");
+
+    const checkBtn = document.getElementById("checkBtn");
+    const revealBtn = document.getElementById("revealBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const clearBtn = document.getElementById("clearBtn");
+
+    function currentPuzzle() { return puzzles[idx]; }
+    function setMessage(t="") { msgEl.textContent = t; }
+    function normalize(s) { return s.toUpperCase().replace(/[^A-Z]/g, ""); }
+
+    function buildGrid(len) {
+      gridEl.innerHTML = "";
+      for (let i = 0; i < len; i++) {
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        cell.addEventListener("click", () => { cursor = i; render(); });
+        gridEl.appendChild(cell);
+      }
+    }
+
+    function render() {
+      const cells = [...gridEl.querySelectorAll(".cell")];
+      cells.forEach((c, i) => {
+        c.textContent = letters[i] ?? "";
+        c.classList.toggle("active", i === cursor);
+        c.classList.remove("correct", "wrong");
+      });
+    }
+
+    function loadPuzzle() {
+      const p = currentPuzzle();
+      hintEl.textContent = "Hint: " + p.hint;
+      letters = Array(p.answer.length).fill("");
+      cursor = 0;
+      setMessage("");
+      buildGrid(p.answer.length);
+      render();
+    }
+
+    function userWord() { return normalize(letters.join("")); }
+
+    function checkAnswer() {
+      const ans = normalize(currentPuzzle().answer);
+      const guess = userWord();
+      const cells = [...gridEl.querySelectorAll(".cell")];
+
+      if (letters.some(ch => ch === "")) {
+        setMessage("Fill all squares first!");
+        cells.forEach(c => c.classList.add("wrong"));
+        return;
+      }
+
+      if (guess === ans) {
+        setMessage("✅ Correct!");
+        cells.forEach(c => c.classList.add("correct"));
+      } else {
+        setMessage("❌ Not quite. Try again.");
+        cells.forEach(c => c.classList.add("wrong"));
+      }
+    }
+
+    function reveal() {
+      const ans = normalize(currentPuzzle().answer);
+      letters = ans.split("");
+      cursor = ans.length - 1;
+      render();
+      setMessage("Revealed.");
+    }
+
+    function clearAll() {
+      letters = letters.map(() => "");
+      cursor = 0;
+      render();
+      setMessage("");
+    }
+
+    function nextPuzzle() {
+      idx = (idx + 1) % puzzles.length;
+      loadPuzzle();
+    }
+
+    document.addEventListener("keydown", (e) => {
+      const len = currentPuzzle().answer.length;
+
+      if (e.key === "Backspace") {
+        e.preventDefault();
+        if (letters[cursor]) letters[cursor] = "";
+        else if (cursor > 0) { cursor--; letters[cursor] = ""; }
+        render();
+        return;
+      }
+
+      if (e.key === "Enter") { checkAnswer(); return; }
+
+      if (/^[a-zA-Z]$/.test(e.key)) {
+        letters[cursor] = e.key.toUpperCase();
+        if (cursor < len - 1) cursor++;
+        render();
+      }
+    });
+
+    checkBtn.addEventListener("click", checkAnswer);
+    revealBtn.addEventListener("click", reveal);
+    nextBtn.addEventListener("click", nextPuzzle);
+    clearBtn.addEventListener("click", clearAll);
+
+    loadPuzzle();
+  </script>
+</body>
+</html>
