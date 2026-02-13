@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Hint Word Puzzle</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; max-width: 720px; margin: 32px auto; padding: 0 16px; }
+    h1 { font-size: 22px; margin: 0 0 8px; }
+    .card { border: 1px solid #ddd; border-radius: 14px; padding: 16px; }
+    .hint { font-size: 16px; margin: 0 0 14px; }
+    .grid { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 14px; }
+    .cell {
+      width: 44px; height: 54px;
+      border: 2px solid #bbb; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; font-weight: 700;
+      text-transform: uppercase;
+      user-select: none;
+    }
+    .cell.active { border-color: #111; }
+    .cell.correct { border-color: #16a34a; }
+    .cell.wrong { border-color: #dc2626; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    button {
+      padding: 10px 12px; border-radius: 12px; border: 1px solid #ccc;
+      background: #fff; cursor: pointer;
+    }
+    button:hover { background: #f6f6f6; }
+    .msg { min-height: 22px; margin-top: 10px; font-weight: 600; }
+    .small { color: #555; font-size: 13px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Hint Word Puzzle</h1>
+
+  <div class="card">
+    <p class="hint" id="hint"></p>
+    <div class="grid" id="grid"></div>
+
+    <div class="row">
+      <button id="checkBtn">Check</button>
+      <button id="revealBtn">Reveal</button>
+      <button id="nextBtn">Next</button>
+      <button id="clearBtn">Clear</button>
+    </div>
+
+    <div class="msg" id="msg"></div>
+    <div class="small">Tip: type letters on your keyboard. Backspace deletes.</div>
+  </div>
+
+  <script>
+    // 1) Add your puzzles here:
+    const puzzles = [
+      { hint: "A small domesticated animal that says 'meow'", answer: "CAT" },
+      { hint: "Opposite of 'cold'", answer: "HOT" },
+      { hint: "A tool used to drive screws", answer: "SCREWDRIVER" },
+    ];
+
+    let idx = 0;
+    let letters = [];
+    let cursor = 0;
+
+    const hintEl = document.getElementById("hint");
+    const gridEl = document.getElementById("grid");
+    const msgEl = document.getElementById("msg");
+
+    const checkBtn = document.getElementById("checkBtn");
+    const revealBtn = document.getElementById("revealBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const clearBtn = document.getElementById("clearBtn");
+
+    function currentPuzzle() {
+      return puzzles[idx];
+    }
+
+    function setMessage(text = "") {
+      msgEl.textContent = text;
+    }
+
+    function buildGrid(len) {
+      gridEl.innerHTML = "";
+      for (let i = 0; i < len; i++) {
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        cell.dataset.i = String(i);
+        cell.textContent = "";
+        cell.addEventListener("click", () => {
+          cursor = i;
+          render();
+        });
+        gridEl.appendChild(cell);
+      }
+    }
+
+    function render() {
+      const cells = [...gridEl.querySelectorAll(".cell")];
+      cells.forEach((c, i) => {
+        c.textContent = letters[i] ?? "";
+        c.classList.toggle("active", i === cursor);
+        c.classList.remove("correct", "wrong");
+      });
+    }
+
+    function loadPuzzle() {
+      const p = currentPuzzle();
+      hintEl.textContent = "Hint: " + p.hint;
+      letters = Array(p.answer.length).fill("");
+      cursor = 0;
+      setMessage("");
+      buildGrid(p.answer.length);
+      render();
+    }
+
+    function normalize(s) {
+      return s.toUpperCase().replace(/[^A-Z]/g, "");
+    }
+
+    function userWord() {
+      return normalize(letters.join(""));
+    }
+
+    function checkAnswer() {
+      const p = currentPuzzle();
+      const guess = userWord();
+      const ans = normalize(p.answer);
+
+      const cells = [...gridEl.querySelectorAll(".cell")];
+
+      if (guess.length !== ans.length || letters.some(ch => ch === "")) {
+        setMessage("Fill all squares first!");
+        cells.forEach(c => c.classList.add("wrong"));
+        return;
+      }
+
+      if (guess === ans) {
+        setMessage("✅ Correct!");
+        cells.forEach(c => c.classList.add("correct"));
+      } else {
+        setMessage("❌ Not quite. Try again.");
+        cells.forEach(c => c.classList.add("wrong"));
+      }
+    }
+
+    function reveal() {
+      const ans = normalize(currentPuzzle().answer);
+      letters = ans.split("");
+      cursor = ans.length - 1;
+      render();
+      setMessage("Revealed.");
+    }
+
+    function clearAll() {
+      letters = letters.map(() => "");
+      cursor = 0;
+      render();
+      setMessage("");
+    }
+
+    function nextPuzzle() {
+      idx = (idx + 1) % puzzles.length;
+      loadPuzzle();
+    }
+
+    // Keyboard input
+    document.addEventListener("keydown", (e) => {
+      const p = currentPuzzle();
+      const len = p.answer.length;
+
+      if (e.key === "Backspace") {
+        e.preventDefault();
+        if (letters[cursor]) {
+          letters[cursor] = "";
+        } else if (cursor > 0) {
+          cursor--;
+          letters[cursor] = "";
+        }
+        render();
+        return;
+      }
+
+      if (e.key === "Enter") {
+        checkAnswer();
+        return;
+      }
+
+      // Letters only
+      if (/^[a-zA-Z]$/.test(e.key)) {
+        letters[cursor] = e.key.toUpperCase();
+        if (cursor < len - 1) cursor++;
+        render();
+      }
+    });
+
+    checkBtn.addEventListener("click", checkAnswer);
+    revealBtn.addEventListener("click", reveal);
+    nextBtn.addEventListener("click", nextPuzzle);
+    clearBtn.addEventListener("click", clearAll);
+
+    loadPuzzle();
+  </script>
+</body>
+</html>
